@@ -72,7 +72,7 @@ class PaymentCardRepositoryTest {
 
     @Test
     void testSetActiveStatusNative() {
-        int updated = cardRepository.setActiveStatusNative(card.getId(), false);
+        int updated = cardRepository.setActiveStatus(card.getId(), false);
         Optional<PaymentCard> updatedCard = cardRepository.findById(card.getId());
 
         assertAll(

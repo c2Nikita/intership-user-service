@@ -1,0 +1,29 @@
+databaseChangeLog:
+  - changeSet:
+      id: 3
+      author: nikita
+      changes:
+        - createIndex:
+            tableName: users
+            indexName: idx_users_email
+            columns:
+              - column:
+                  name: email
+        - createIndex:
+            tableName: users
+            indexName: idx_users_active
+            columns:
+              - column:
+                  name: active
+        - createIndex:
+            tableName: payment_cards
+            indexName: idx_cards_user_id
+            columns:
+              - column:
+                  name: user_id
+        - createIndex:
+            tableName: payment_cards
+            indexName: idx_cards_active
+            columns:
+              - column:
+                  name: active

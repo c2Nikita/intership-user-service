@@ -10,6 +10,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import org.springframework.data.domain.Pageable;
@@ -25,17 +26,19 @@ public class UserController {
         this.userService = userService;
     }
 
+    @PreAuthorize("hasRole('ADMIN') or #id == authentication.principal")
     @GetMapping("/{id}")
     public ResponseEntity<UserDTO> getUser(@PathVariable Long id) {
         return ResponseEntity.ok(userService.getById(id));
     }
 
-
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping
     public ResponseEntity<UserDTO> createUser(@RequestBody @Valid UserDTO userDTO) {
         return ResponseEntity.status(HttpStatus.CREATED).body(userService.create(userDTO));
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @PatchMapping("/{id}/active")
     public ResponseEntity<UserDTO> setActiveStatus(
             @PathVariable Long id,
@@ -45,6 +48,7 @@ public class UserController {
         return ResponseEntity.ok(userService.getById(id));
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteUser(@PathVariable Long id) {
         userService.delete(id);
@@ -52,6 +56,7 @@ public class UserController {
         return ResponseEntity.noContent().build();
     }
 
+    @PreAuthorize("hasRole('ADMIN') or #id == authentication.principal")
     @PatchMapping("/{id}")
     public ResponseEntity<UserDTO> updateNameAndSurname(
             @PathVariable Long id,
@@ -63,7 +68,7 @@ public class UserController {
 
     }
 
-
+    @PreAuthorize("hasRole('ADMIN')")
     @GetMapping()
     public ResponseEntity<Page<UserDTO>> getAll(
             @RequestParam(required = false) String name,

@@ -10,4 +10,5 @@ public interface PaymentCardService extends BaseService<PaymentCardDTO>{
 
     PaymentCardDTO update(Long id, PaymentCardDTO dto);
 
+    public Long getOwnerId(Long cardId);
 }

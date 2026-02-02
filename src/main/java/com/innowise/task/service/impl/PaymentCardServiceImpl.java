@@ -165,4 +165,12 @@ public class PaymentCardServiceImpl implements PaymentCardService {
 
         return getById(id);
     }
+
+    @Override
+    public Long getOwnerId(Long cardId) {
+        return cardRepository.findById(cardId)
+                .orElseThrow(() -> new RuntimeException("Card not found"))
+                .getUser()
+                .getId();
+    }
 }

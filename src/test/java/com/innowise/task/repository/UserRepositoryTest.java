@@ -36,7 +36,6 @@ class UserRepositoryTest {
     @Test
     void testSaveAndFindById() {
         Optional<User> found = userRepository.findById(user.getId());
-
         assertAll(
                 () -> assertTrue(found.isPresent(), "User should be present"),
                 () -> assertEquals("nikita@example.com", found.get().getEmail(), "Email should match")

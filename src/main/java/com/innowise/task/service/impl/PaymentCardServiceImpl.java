@@ -12,6 +12,11 @@ import com.innowise.task.repository.PaymentCardRepository;
 import com.innowise.task.repository.UserRepository;
 import com.innowise.task.service.PaymentCardService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.CacheManager;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.CachePut;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -39,7 +44,12 @@ public class PaymentCardServiceImpl implements PaymentCardService {
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired
+    private CacheManager cacheManager;
 
+
+    @CachePut(value = "cards", key = "#result.id")
+    @CacheEvict(value = "cardsByUserId", key = "#result.userId")
     @Transactional
     @Override
     public PaymentCardDTO create(PaymentCardDTO dto) {
@@ -66,6 +76,7 @@ public class PaymentCardServiceImpl implements PaymentCardService {
         return PaymentCardMapper.INSTANCE.toDTO(saved);
     }
 
+    @Cacheable(value = "cards", key = "#id")
     @Override
     public PaymentCardDTO getById(Long id) {
         if (id == null) {
@@ -95,9 +106,14 @@ public class PaymentCardServiceImpl implements PaymentCardService {
         }
 
         int updated = cardRepository.setActiveStatus(id, active);
+
         if (updated == 0) {
             throw new NotFoundException(CARD_NOT_UPDATED + id);
         }
+
+        PaymentCard paymentCard = cardRepository.getById(id);
+        cacheManager.getCache("cards").evict(id);
+        cacheManager.getCache("cardsByUserId").evict(paymentCard.getUser().getId());
     }
 
     @Transactional
@@ -107,13 +123,15 @@ public class PaymentCardServiceImpl implements PaymentCardService {
             throw new ValidationException(CARD_ID_MUST_NOT_BE_NULL);
         }
 
-        if (!cardRepository.existsById(id)) {
-            throw new NotFoundException(CARD_NOT_FOUND + id);
-        }
+        PaymentCard paymentCard = cardRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException(CARD_NOT_FOUND + id));
 
         cardRepository.deleteById(id);
+        cacheManager.getCache("cards").evict(id);
+        cacheManager.getCache("cardsByUserId").evict(paymentCard.getUser().getId());
     }
 
+    @Cacheable(value = "cardsByUserId", key = "#userId")
     @Override
     public List<PaymentCardDTO> getAllByUserId(Long userId) {
         if (userId == null) {
@@ -126,6 +144,10 @@ public class PaymentCardServiceImpl implements PaymentCardService {
                 .collect(Collectors.toList());
     }
 
+    @Caching(evict = {
+            @CacheEvict(value = "cards", key = "#id"),
+            @CacheEvict(value = "cardsByUserId", key = "#dto.userId")
+    })
     @Transactional
     @Override
     public PaymentCardDTO update(Long id, PaymentCardDTO dto) {

@@ -27,7 +27,8 @@ public class PaymentCardController {
 
     @GetMapping("/{id}")
     public ResponseEntity<PaymentCardDTO> getCard(@PathVariable Long id) {
-        return ResponseEntity.ok(paymentCardService.getById(id));
+        PaymentCardDTO paymentCardDTO = paymentCardService.getById(id);
+        return ResponseEntity.ok(paymentCardDTO);
     }
 
     @DeleteMapping("/{id}")

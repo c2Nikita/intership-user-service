@@ -9,6 +9,10 @@ import com.innowise.task.mapper.UserMapper;
 import com.innowise.task.repository.UserRepository;
 import com.innowise.task.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.CachePut;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -28,6 +32,7 @@ public class UserServiceImpl implements UserService {
     @Autowired
     private UserRepository userRepository;
 
+    @CachePut(value = "users", key = "#result.id")
     @Transactional
     @Override
     public UserDTO create(UserDTO userDTO) {
@@ -40,7 +45,7 @@ public class UserServiceImpl implements UserService {
 
         return UserMapper.INSTANCE.toDto(savedUser);
     }
-
+    @Cacheable(value = "users", key = "#id")
     @Override
     public UserDTO getById(Long id) {
         if (id == null) {
@@ -59,6 +64,7 @@ public class UserServiceImpl implements UserService {
                 .map(UserMapper.INSTANCE::toDto);
     }
 
+    @CacheEvict(value = "users", key = "#id")
     @Transactional
     @Override
     public void setActiveStatus(Long id, boolean active) {
@@ -72,6 +78,10 @@ public class UserServiceImpl implements UserService {
         }
     }
 
+    @Caching(evict = {
+            @CacheEvict(value = "users", key = "#id"),
+            @CacheEvict(value = "cardsByUserId", key = "#id")
+    })
     @Transactional
     @Override
     public void delete(Long id) {
@@ -86,6 +96,7 @@ public class UserServiceImpl implements UserService {
         userRepository.deleteById(id);
     }
 
+    @CacheEvict(value = "users", key = "#id")
     @Transactional
     @Override
     public UserDTO updateNameAndSurname(Long id, String name, String surname) {
@@ -98,7 +109,9 @@ public class UserServiceImpl implements UserService {
             throw new NotFoundException(USER_NOT_UPDATED + id);
         }
 
-        return getById(id);
+        return userRepository.findById(id)
+                .map(UserMapper.INSTANCE::toDto)
+                .orElseThrow(() -> new NotFoundException(USER_NOT_FOUND + id));
     }
 }
 

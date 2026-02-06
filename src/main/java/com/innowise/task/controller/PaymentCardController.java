@@ -35,10 +35,10 @@ public class PaymentCardController {
 
     @PreAuthorize("hasRole('ADMIN') or @cardSecurity.isOwner(#id)")
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteCard(@PathVariable Long id) {
-        paymentCardService.delete(id);
+    public ResponseEntity<PaymentCardDTO> deleteCard(@PathVariable Long id) {
+        PaymentCardDTO deletedCard = paymentCardService.delete(id);
 
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok(deletedCard);
     }
 
     @PreAuthorize("hasRole('ADMIN') or @cardSecurity.isOwner(#id)")
@@ -46,9 +46,9 @@ public class PaymentCardController {
     public ResponseEntity<PaymentCardDTO> setActiveStatus(
             @PathVariable Long id,
             @RequestParam boolean active) {
-        paymentCardService.setActiveStatus(id, active);
+        PaymentCardDTO paymentCardDTO = paymentCardService.setActiveStatus(id, active);
 
-        return ResponseEntity.ok(paymentCardService.getById(id));
+        return ResponseEntity.ok(paymentCardDTO);
     }
 
     @PreAuthorize("hasRole('ADMIN') or #paymentCardDTO.userId == authentication.principal")
@@ -67,9 +67,7 @@ public class PaymentCardController {
             @RequestParam(defaultValue = "id") String sortBy
             ) {
         Pageable pageable = PageRequest.of(page, size, Sort.by(sortBy));
-        Specification specification = Specification.where(PaymentCardSpecification.userHasName(name))
-                        .and(PaymentCardSpecification.userHasSurname(surname));
-        Page<PaymentCardDTO> cards = paymentCardService.findAll(specification, pageable);
+        Page<PaymentCardDTO> cards = paymentCardService.findAll(name, surname, pageable);
 
         return ResponseEntity.ok(cards);
     }

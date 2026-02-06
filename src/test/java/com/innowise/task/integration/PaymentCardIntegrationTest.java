@@ -9,31 +9,36 @@ import org.springframework.boot.resttestclient.TestRestTemplate;
 import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.context.annotation.Import;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.*;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
-
+import java.util.UUID;
 import java.time.Duration;
 import java.time.LocalDate;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
 @Testcontainers
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
+@ActiveProfiles("test")
+@Import(NoSecurityTestConfig.class)
 public class PaymentCardIntegrationTest {
+
+    private static final String POSTGRES_PASSWORD = UUID.randomUUID().toString();
 
     @Container
     public static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:15")
             .withDatabaseName("testdb")
             .withUsername("user")
-            .withPassword("password");
+            .withPassword(POSTGRES_PASSWORD);
 
     @Container
     public static GenericContainer<?> redis = new GenericContainer<>("redis:7")
@@ -119,9 +124,10 @@ public class PaymentCardIntegrationTest {
         assertThat(cardsByUser.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(cardsByUser.getBody()).hasSize(1);
 
-        ResponseEntity<Void> deleteResponse = restTemplate.exchange(
-                baseUrl + "/api/cards/" + createdCard.getId(), HttpMethod.DELETE, entity, Void.class);
-        assertThat(deleteResponse.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+        ResponseEntity<PaymentCardDTO> deleteResponse = restTemplate.exchange(
+                baseUrl + "/api/cards/" + createdCard.getId(), HttpMethod.DELETE, entity, PaymentCardDTO.class);
+        assertThat(deleteResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(deleteResponse.getBody().getId()).isEqualTo(createdCard.getId());
 
         ResponseEntity<String> deletedCardResponse = restTemplate.getForEntity(
                 baseUrl + "/api/cards/" + createdCard.getId(), String.class);

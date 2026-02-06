@@ -9,7 +9,7 @@ public interface BaseService <T> {
 
     T create(T dto);
     T getById(Long id);
-    Page<T> findAll(Specification<?> specification, Pageable pageable);
-    void setActiveStatus(Long id, boolean active);
-    void delete(Long id);
+    Page<T> findAll(String name, String surname, Pageable pageable);
+    T setActiveStatus(Long id, boolean active);
+    T delete(Long id);
 }

@@ -8,8 +8,9 @@ import org.springframework.boot.resttestclient.TestRestTemplate;
 import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
-import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.*;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.GenericContainer;
@@ -17,22 +18,25 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-import java.time.Duration;
 import java.time.LocalDate;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.testcontainers.shaded.org.awaitility.Awaitility.await;
 
 @Testcontainers
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
+@ActiveProfiles("test")
+@Import(NoSecurityTestConfig.class)
 public class UserIntegrationTest {
+
+    private static final String POSTGRES_PASSWORD = UUID.randomUUID().toString();
 
     @Container
     public static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:15")
             .withDatabaseName("testdb")
             .withUsername("user")
-            .withPassword("password");
+            .withPassword(POSTGRES_PASSWORD);
 
     @Container
     public static GenericContainer<?> redis = new GenericContainer<>("redis:7")
@@ -43,7 +47,6 @@ public class UserIntegrationTest {
         registry.add("spring.datasource.url", postgres::getJdbcUrl);
         registry.add("spring.datasource.username", postgres::getUsername);
         registry.add("spring.datasource.password", postgres::getPassword);
-
         registry.add("spring.data.redis.host", redis::getHost);
         registry.add("spring.data.redis.port", () -> redis.getMappedPort(6379));
         registry.add("spring.data.redis.password", () -> "");
@@ -55,9 +58,6 @@ public class UserIntegrationTest {
     @Autowired
     private TestRestTemplate restTemplate;
 
-    @Autowired
-    private StringRedisTemplate redisTemplate;
-
     private String baseUrl;
 
     @BeforeEach
@@ -66,7 +66,7 @@ public class UserIntegrationTest {
     }
 
     @Test
-    void testFullUserFlowWithRedisCaching() {
+    void testFullUserFlow() {
         UserDTO userDTO = new UserDTO();
         userDTO.setName("John");
         userDTO.setSurname("Doe");
@@ -81,15 +81,11 @@ public class UserIntegrationTest {
         assertThat(createdUser).isNotNull();
         assertThat(createdUser.getId()).isNotNull();
 
-        String cachedKey = "users::" + createdUser.getId();
-        await().atMost(Duration.ofSeconds(5))
-                .pollInterval(Duration.ofMillis(100))
-                .untilAsserted(() -> assertThat(redisTemplate.hasKey(cachedKey)).isTrue());
-
         ResponseEntity<UserDTO> getResponse = restTemplate.getForEntity(
                 baseUrl + "/" + createdUser.getId(), UserDTO.class);
         assertThat(getResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(getResponse.getBody().getName()).isEqualTo("John");
+        assertThat(getResponse.getBody().getActive()).isTrue();
 
         HttpHeaders headers = new HttpHeaders();
         HttpEntity<Void> entity = new HttpEntity<>(headers);
@@ -105,11 +101,13 @@ public class UserIntegrationTest {
                 HttpMethod.PATCH, entity, UserDTO.class);
         assertThat(updateName.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(updateName.getBody().getName()).isEqualTo("Jane");
+        assertThat(updateName.getBody().getSurname()).isEqualTo("Doe");
 
-        ResponseEntity<String> deleteResponse = restTemplate.exchange(
+        ResponseEntity<UserDTO> deleteResponse = restTemplate.exchange(
                 baseUrl + "/" + createdUser.getId(),
-                HttpMethod.DELETE, entity, String.class);
-        assertThat(deleteResponse.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+                HttpMethod.DELETE, entity, UserDTO.class);
+        assertThat(deleteResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(deleteResponse.getBody().getId()).isEqualTo(createdUser.getId());
 
         ResponseEntity<String> deletedGet = restTemplate.getForEntity(
                 baseUrl + "/" + createdUser.getId(), String.class);

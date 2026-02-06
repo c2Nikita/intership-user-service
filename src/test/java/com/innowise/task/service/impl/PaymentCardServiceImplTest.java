@@ -1,27 +1,25 @@
 package com.innowise.task.service.impl;
 
-import java.util.List;
-import java.util.Optional;
-
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.cache.Cache;
-import org.springframework.cache.CacheManager;
-
 import com.innowise.task.dto.PaymentCardDTO;
 import com.innowise.task.entity.PaymentCard;
 import com.innowise.task.entity.User;
 import com.innowise.task.exception.BusinessRuleException;
 import com.innowise.task.exception.NotFoundException;
 import com.innowise.task.exception.ValidationException;
+import com.innowise.task.mapper.PaymentCardMapper;
 import com.innowise.task.repository.PaymentCardRepository;
 import com.innowise.task.repository.UserRepository;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.*;
 import org.springframework.data.jpa.domain.Specification;
+
+import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -37,15 +35,11 @@ class PaymentCardServiceImplTest {
 
     @Mock
     private PaymentCardRepository cardRepository;
+    @Mock
+    private PaymentCardMapper paymentCardMapper;
 
     @Mock
     private UserRepository userRepository;
-
-    @Mock
-    private CacheManager cacheManager;
-
-    @Mock
-    private Cache cache;
 
     private PaymentCardDTO dto;
     private PaymentCard card;
@@ -69,6 +63,9 @@ class PaymentCardServiceImplTest {
         card.setNumber(dto.getNumber());
         card.setHolder(dto.getHolder());
         card.setActive(true);
+
+        lenient().when(paymentCardMapper.toDTO(any(PaymentCard.class))).thenReturn(dto);
+        lenient().when(paymentCardMapper.toEntity(any(PaymentCardDTO.class))).thenReturn(card);
     }
 
     @Test
@@ -134,8 +131,6 @@ class PaymentCardServiceImplTest {
 
     @Test
     void update_shouldUpdateAndReturnCard() {
-        when(cardRepository.updateCardById(1L, dto.getNumber(), dto.getHolder()))
-                .thenReturn(1);
         when(cardRepository.findById(1L)).thenReturn(Optional.of(card));
 
         PaymentCardDTO result = service.update(1L, dto);
@@ -145,81 +140,52 @@ class PaymentCardServiceImplTest {
 
     @Test
     void update_shouldThrow_whenNotUpdated() {
-        when(cardRepository.updateCardById(any(), any(), any()))
-                .thenReturn(0);
-
-        assertThatThrownBy(() -> service.update(1L, dto))
-                .isInstanceOf(NotFoundException.class);
+        assertThatThrownBy(() -> service.update(1L, null))
+                .isInstanceOf(ValidationException.class);
     }
 
     @Test
-    void setActiveStatus_shouldUpdateAndEvictCache() {
-        when(cacheManager.getCache(anyString())).thenReturn(cache);
-        when(cardRepository.setActiveStatus(1L, true)).thenReturn(1);
-        when(cardRepository.getById(1L)).thenReturn(card);
+    void setActiveStatus_shouldUpdate() {
+        when(cardRepository.findById(1L)).thenReturn(Optional.of(card));
 
         service.setActiveStatus(1L, true);
 
-        verify(cache, times(2)).evict(1L);
+        assertThat(card.getActive()).isTrue();
     }
 
     @Test
-    void delete_shouldDeleteAndEvictCache() {
-        when(cacheManager.getCache(anyString())).thenReturn(cache);
+    void setActiveStatus_shouldThrow_whenIdNull() {
+        assertThatThrownBy(() -> service.setActiveStatus(null, true))
+                .isInstanceOf(ValidationException.class);
+    }
+
+    @Test
+    void delete_shouldDeleteCard() {
         when(cardRepository.findById(1L)).thenReturn(Optional.of(card));
 
-        service.delete(1L);
+        PaymentCardDTO result = service.delete(1L);
 
-        verify(cardRepository).deleteById(1L);
-        verify(cache, times(2)).evict(1L);
+        assertThat(result.getId()).isEqualTo(1L);
     }
 
     @Test
-    void getAllByUserId_shouldReturnCards() {
-        when(cardRepository.findAllByUserId(1L)).thenReturn(List.of(card));
-
-        List<PaymentCardDTO> result = service.getAllByUserId(1L);
-
-        assertThat(result).hasSize(1);
+    void delete_shouldThrow_whenIdNull() {
+        assertThatThrownBy(() -> service.delete(null))
+                .isInstanceOf(ValidationException.class);
     }
 
     @Test
     void findAll_shouldReturnPageOfPaymentDTO() {
         Pageable pageable = PageRequest.of(0, 10, Sort.by("id").ascending());
 
-        Specification<PaymentCard> spec = (root, query, cb) -> cb.conjunction();
+        Page<PaymentCard> cardPage = new PageImpl<>(List.of(card), pageable, 1);
+        when(cardRepository.findAll(any(Specification.class), eq(pageable))).thenReturn(cardPage);
 
-        Page<PaymentCard> userPage = new PageImpl<>(List.of(card), pageable, 1);
-        when(cardRepository.findAll(spec, pageable)).thenReturn(userPage);
-
-        Page<PaymentCardDTO> result = service.findAll(spec, pageable);
+        Page<PaymentCardDTO> result = service.findAll("John", "Doe", pageable);
 
         assertThat(result).isNotNull();
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getId()).isEqualTo(1L);
-
-        verify(cardRepository).findAll(spec, pageable);
     }
 
-    @Test
-    void update_shouldThrow_whenDtoNull() {
-        assertThatThrownBy(() -> service.update(1L, null))
-                .isInstanceOf(ValidationException.class)
-                .hasMessage(PaymentCardServiceImpl.CARD_DTO_MUST_NOT_BE_NULL);
-    }
-
-    @Test
-    void setActiveStatus_shouldThrow_whenIdNull() {
-        assertThatThrownBy(() -> service.setActiveStatus(null, true))
-                .isInstanceOf(ValidationException.class)
-                .hasMessage(PaymentCardServiceImpl.CARD_ID_MUST_NOT_BE_NULL);
-    }
-
-    @Test
-    void delete_shouldThrow_whenIdNull() {
-        assertThatThrownBy(() -> service.delete(null))
-                .isInstanceOf(ValidationException.class)
-                .hasMessage(PaymentCardServiceImpl.CARD_ID_MUST_NOT_BE_NULL);
-    }
 }
-

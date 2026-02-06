@@ -43,17 +43,17 @@ public class UserController {
     public ResponseEntity<UserDTO> setActiveStatus(
             @PathVariable Long id,
             @RequestParam boolean active) {
-        userService.setActiveStatus(id, active);
+        UserDTO user = userService.setActiveStatus(id, active);
 
-        return ResponseEntity.ok(userService.getById(id));
+        return ResponseEntity.ok(user);
     }
 
     @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteUser(@PathVariable Long id) {
-        userService.delete(id);
+    public ResponseEntity<UserDTO> deleteUser(@PathVariable Long id) {
+        UserDTO userDTO = userService.delete(id);
 
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok(userDTO);
     }
 
     @PreAuthorize("hasRole('ADMIN') or #id == authentication.principal")
@@ -78,9 +78,7 @@ public class UserController {
             @RequestParam(defaultValue = "id") String sortBy
     ){
         Pageable pageable = PageRequest.of(page, size, Sort.by(sortBy));
-        Specification specification = Specification.where(UserSpecification.hasName(name))
-                .and(UserSpecification.hasSurname(surname));
-        Page<UserDTO> users = userService.findAll(specification, pageable);
+        Page<UserDTO> users = userService.findAll(name, surname, pageable);
 
         return ResponseEntity.ok(users);
 

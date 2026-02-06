@@ -3,12 +3,11 @@ package com.innowise.task.service.impl;
 import com.innowise.task.dto.UserDTO;
 import com.innowise.task.entity.User;
 import com.innowise.task.exception.NotFoundException;
-import com.innowise.task.exception.ServiceException;
 import com.innowise.task.exception.ValidationException;
 import com.innowise.task.mapper.UserMapper;
 import com.innowise.task.repository.UserRepository;
 import com.innowise.task.service.UserService;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.innowise.task.specification.UserSpecification;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.CachePut;
 import org.springframework.cache.annotation.Cacheable;
@@ -19,18 +18,23 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Optional;
 
 @Service
 public class UserServiceImpl implements UserService {
 
-    public static final String USER_NOT_FOUND = "User not found with id ";
-    public static final String USER_NOT_UPDATED = "User not found or not updated with id ";
-    public static final String USER_ID_MUST_NOT_BE_NULL = "User id must not be null";
-    public static final String USER_DTO_MUST_NOT_BE_NULL = "User DTO must not be null";
+    private static final String USER_NOT_FOUND = "User not found with id ";
+    private static final String USER_ID_MUST_NOT_BE_NULL = "User id must not be null";
+    private static final String USER_DTO_MUST_NOT_BE_NULL = "User DTO must not be null";
 
-    @Autowired
     private UserRepository userRepository;
+
+    private UserMapper userMapper;
+
+    public UserServiceImpl(UserRepository userRepository,
+                           UserMapper userMapper) {
+        this.userRepository = userRepository;
+        this.userMapper = userMapper;
+    }
 
     @CachePut(value = "users", key = "#result.id")
     @Transactional
@@ -40,10 +44,10 @@ public class UserServiceImpl implements UserService {
             throw new ValidationException(USER_DTO_MUST_NOT_BE_NULL);
         }
 
-        User user = UserMapper.INSTANCE.toEntity(userDTO);
+        User user = userMapper.toEntity(userDTO);
         User savedUser = userRepository.save(user);
 
-        return UserMapper.INSTANCE.toDto(savedUser);
+        return userMapper.toDto(savedUser);
     }
     @Cacheable(value = "users", key = "#id")
     @Override
@@ -52,30 +56,32 @@ public class UserServiceImpl implements UserService {
             throw new ValidationException(USER_ID_MUST_NOT_BE_NULL);
         }
         return userRepository.findById(id)
-                .map(UserMapper.INSTANCE::toDto)
+                .map(userMapper::toDto)
                 .orElseThrow(() -> new NotFoundException(USER_NOT_FOUND + id));
     }
 
     @Override
-    public Page<UserDTO> findAll(Specification<?> specification, Pageable pageable) {
-        Specification<User> spec = (Specification<User>) specification;
+    public Page<UserDTO> findAll(String name, String surname, Pageable pageable) {
+        Specification<User> specification = Specification.where(UserSpecification.hasName(name))
+                .and(UserSpecification.hasSurname(surname));
 
-        return userRepository.findAll(spec, pageable)
-                .map(UserMapper.INSTANCE::toDto);
+        return userRepository.findAll(specification, pageable)
+                .map(userMapper::toDto);
     }
 
     @CacheEvict(value = "users", key = "#id")
     @Transactional
     @Override
-    public void setActiveStatus(Long id, boolean active) {
+    public UserDTO setActiveStatus(Long id, boolean active) {
         if (id == null) {
             throw new ValidationException(USER_ID_MUST_NOT_BE_NULL);
         }
 
-        int updated = userRepository.setActiveStatus(id, active);
-        if (updated == 0) {
-            throw new NotFoundException(USER_NOT_UPDATED + id);
-        }
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException(USER_NOT_FOUND + id));
+        user.setActive(active);
+
+        return userMapper.toDto(user);
     }
 
     @Caching(evict = {
@@ -84,16 +90,16 @@ public class UserServiceImpl implements UserService {
     })
     @Transactional
     @Override
-    public void delete(Long id) {
+    public UserDTO delete(Long id) {
         if (id == null) {
             throw new ValidationException(USER_ID_MUST_NOT_BE_NULL);
         }
 
-        if (!userRepository.existsById(id)) {
-            throw new NotFoundException(USER_NOT_FOUND + id);
-        }
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException(USER_NOT_FOUND + id));
+        userRepository.delete(user);
 
-        userRepository.deleteById(id);
+        return userMapper.toDto(user);
     }
 
     @CacheEvict(value = "users", key = "#id")
@@ -104,14 +110,13 @@ public class UserServiceImpl implements UserService {
             throw new ValidationException(USER_ID_MUST_NOT_BE_NULL);
         }
 
-        int updated = userRepository.updateNameAndSurnameById(id, name, surname);
-        if (updated == 0) {
-            throw new NotFoundException(USER_NOT_UPDATED + id);
-        }
-
-        return userRepository.findById(id)
-                .map(UserMapper.INSTANCE::toDto)
+        User user = userRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException(USER_NOT_FOUND + id));
+
+        user.setName(name);
+        user.setSurname(surname);
+
+        return userMapper.toDto(user);
     }
 }
 

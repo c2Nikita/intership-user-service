@@ -9,8 +9,6 @@ import org.mapstruct.factory.Mappers;
 @Mapper(componentModel = "spring")
 public interface PaymentCardMapper {
 
-    PaymentCardMapper INSTANCE = Mappers.getMapper(PaymentCardMapper.class);
-
     @Mapping(source = "user.id", target = "userId")
     PaymentCardDTO toDTO(PaymentCard paymentCard);
 

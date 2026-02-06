@@ -1,11 +1,14 @@
 package com.innowise.task.entity;
 
 import jakarta.persistence.*;
-import lombok.Data;
+import lombok.*;
 
 import java.time.LocalDate;
 
-@Data
+@Getter
+@Setter
+@ToString(onlyExplicitlyIncluded = true)
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @Entity
 @Table(name = "payment_cards", indexes = {
         @Index(name = "idx_cards_user_id", columnList = "user_id"),

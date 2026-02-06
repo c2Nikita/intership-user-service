@@ -11,8 +11,7 @@ import com.innowise.task.mapper.PaymentCardMapper;
 import com.innowise.task.repository.PaymentCardRepository;
 import com.innowise.task.repository.UserRepository;
 import com.innowise.task.service.PaymentCardService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.cache.CacheManager;
+import com.innowise.task.specification.PaymentCardSpecification;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.CachePut;
 import org.springframework.cache.annotation.Cacheable;
@@ -29,23 +28,26 @@ import java.util.stream.Collectors;
 @Service
 public class PaymentCardServiceImpl implements PaymentCardService {
 
-    public static final String CARD_NOT_FOUND = "Payment card not found with id ";
-    public static final String CARD_NOT_UPDATED = "Payment card not found or not updated with id ";
-    public static final String CARD_ID_MUST_NOT_BE_NULL = "Payment card id must not be null";
-    public static final String CARD_DTO_MUST_NOT_BE_NULL = "Payment card DTO must not be null";
-    public static final String USER_ID_MUST_NOT_BE_NULL = "User id must not be null";
-    public static final String USER_ID_MUST_NOT_HAVE_MORE_THAN_FIVE_CARDS = "User cannot have more than 5 cards";
+    private static final String CARD_NOT_FOUND = "Payment card not found with id ";
+    private static final String CARD_ID_MUST_NOT_BE_NULL = "Payment card id must not be null";
+    private static final String CARD_DTO_MUST_NOT_BE_NULL = "Payment card DTO must not be null";
+    private static final String USER_ID_MUST_NOT_BE_NULL = "User id must not be null";
+    private static final String USER_ID_MUST_NOT_HAVE_MORE_THAN_FIVE_CARDS = "User cannot have more than 5 cards";
+    private static final String USER_NOT_FOUND = "User not found with id ";
 
-    public static final String USER_NOT_FOUND = "User not found with id ";
-
-    @Autowired
     private PaymentCardRepository cardRepository;
 
-    @Autowired
     private UserRepository userRepository;
 
-    @Autowired
-    private CacheManager cacheManager;
+    private PaymentCardMapper paymentCardMapper;
+
+    public PaymentCardServiceImpl(PaymentCardRepository cardRepository,
+                                  UserRepository userRepository,
+                                  PaymentCardMapper paymentCardMapper) {
+        this.cardRepository = cardRepository;
+        this.userRepository = userRepository;
+        this.paymentCardMapper = paymentCardMapper;
+    }
 
 
     @CachePut(value = "cards", key = "#result.id")
@@ -69,11 +71,11 @@ public class PaymentCardServiceImpl implements PaymentCardService {
             throw new BusinessRuleException(USER_ID_MUST_NOT_HAVE_MORE_THAN_FIVE_CARDS);
         }
 
-        PaymentCard card = PaymentCardMapper.INSTANCE.toEntity(dto);
+        PaymentCard card = paymentCardMapper.toEntity(dto);
         card.setUser(user);
         PaymentCard saved = cardRepository.save(card);
 
-        return PaymentCardMapper.INSTANCE.toDTO(saved);
+        return paymentCardMapper.toDTO(saved);
     }
 
     @Cacheable(value = "cards", key = "#id")
@@ -84,41 +86,47 @@ public class PaymentCardServiceImpl implements PaymentCardService {
         }
 
         return cardRepository.findById(id)
-                .map(PaymentCardMapper.INSTANCE::toDTO)
+                .map(paymentCardMapper::toDTO)
                 .orElseThrow(() -> new NotFoundException(CARD_NOT_FOUND + id));
     }
 
     @Override
-    public Page<PaymentCardDTO> findAll(Specification<?> specification, Pageable pageable)
+    public Page<PaymentCardDTO> findAll(String name, String surname, Pageable pageable)
             throws ServiceException {
 
-        Specification<PaymentCard> spec = (Specification<PaymentCard>) specification;
+        Specification<PaymentCard> specification = Specification.where(PaymentCardSpecification.userHasName(name))
+                .and(PaymentCardSpecification.userHasSurname(surname));
 
-        return cardRepository.findAll(spec, pageable)
-                .map(PaymentCardMapper.INSTANCE::toDTO);
+        return cardRepository.findAll(specification, pageable)
+                .map(paymentCardMapper::toDTO);
     }
 
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(value = "cards", key = "#id"),
+            @CacheEvict(value = "cardsByUserId", key = "#result.userId")
+    })
     @Override
-    public void setActiveStatus(Long id, boolean active) {
+    public PaymentCardDTO setActiveStatus(Long id, boolean active) {
         if (id == null) {
             throw new ValidationException(CARD_ID_MUST_NOT_BE_NULL);
         }
 
-        int updated = cardRepository.setActiveStatus(id, active);
+        PaymentCard card = cardRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException(CARD_NOT_FOUND + id));
 
-        if (updated == 0) {
-            throw new NotFoundException(CARD_NOT_UPDATED + id);
-        }
+        card.setActive(active);
 
-        PaymentCard paymentCard = cardRepository.getById(id);
-        cacheManager.getCache("cards").evict(id);
-        cacheManager.getCache("cardsByUserId").evict(paymentCard.getUser().getId());
+        return paymentCardMapper.toDTO(card);
     }
 
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(value = "cards", key = "#id"),
+            @CacheEvict(value = "cardsByUserId", key = "#result.userId")
+    })
     @Override
-    public void delete(Long id) {
+    public PaymentCardDTO delete(Long id) {
         if (id == null) {
             throw new ValidationException(CARD_ID_MUST_NOT_BE_NULL);
         }
@@ -126,9 +134,9 @@ public class PaymentCardServiceImpl implements PaymentCardService {
         PaymentCard paymentCard = cardRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException(CARD_NOT_FOUND + id));
 
-        cardRepository.deleteById(id);
-        cacheManager.getCache("cards").evict(id);
-        cacheManager.getCache("cardsByUserId").evict(paymentCard.getUser().getId());
+        cardRepository.delete(paymentCard);
+
+        return paymentCardMapper.toDTO(paymentCard);
     }
 
     @Cacheable(value = "cardsByUserId", key = "#userId")
@@ -140,7 +148,7 @@ public class PaymentCardServiceImpl implements PaymentCardService {
 
         return cardRepository.findAllByUserId(userId)
                 .stream()
-                .map(PaymentCardMapper.INSTANCE::toDTO)
+                .map(paymentCardMapper::toDTO)
                 .collect(Collectors.toList());
     }
 
@@ -158,12 +166,13 @@ public class PaymentCardServiceImpl implements PaymentCardService {
             throw new ValidationException(CARD_DTO_MUST_NOT_BE_NULL);
         }
 
-        int updated = cardRepository.updateCardById(id, dto.getNumber(), dto.getHolder());
-        if (updated == 0) {
-            throw new NotFoundException(CARD_NOT_UPDATED + id);
-        }
+        PaymentCard card = cardRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException(CARD_NOT_FOUND + id));
 
-        return getById(id);
+        card.setNumber(dto.getNumber());
+        card.setHolder(dto.getHolder());
+
+        return paymentCardMapper.toDTO(card);
     }
 
     @Override

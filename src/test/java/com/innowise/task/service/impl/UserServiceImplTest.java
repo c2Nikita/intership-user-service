@@ -4,6 +4,7 @@ import com.innowise.task.dto.UserDTO;
 import com.innowise.task.entity.User;
 import com.innowise.task.exception.NotFoundException;
 import com.innowise.task.exception.ValidationException;
+import com.innowise.task.mapper.UserMapper;
 import com.innowise.task.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -19,8 +20,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -31,6 +31,9 @@ class UserServiceImplTest {
 
     @Mock
     private UserRepository repository;
+
+    @Mock
+    private UserMapper userMapper;
 
     private UserDTO dto;
     private User user;
@@ -49,11 +52,13 @@ class UserServiceImplTest {
         user.setSurname("Doe");
         user.setActive(true);
 
+        lenient().when(userMapper.toEntity(any(UserDTO.class))).thenReturn(user);
+        lenient().when(userMapper.toDto(any(User.class))).thenReturn(dto);
     }
 
     @Test
     void create_shouldSaveUser() {
-        when(repository.save(any())).thenReturn(user);
+        when(repository.save(any(User.class))).thenReturn(user);
 
         UserDTO result = service.create(dto);
 
@@ -61,6 +66,8 @@ class UserServiceImplTest {
         assertThat(result.getId()).isEqualTo(1L);
         assertThat(result.getName()).isEqualTo("John");
         assertThat(result.getSurname()).isEqualTo("Doe");
+
+        verify(repository).save(user);
     }
 
     @Test
@@ -75,8 +82,10 @@ class UserServiceImplTest {
 
         UserDTO result = service.getById(1L);
 
+        assertThat(result).isNotNull();
         assertThat(result.getId()).isEqualTo(1L);
         assertThat(result.getName()).isEqualTo("John");
+        verify(repository).findById(1L);
     }
 
     @Test
@@ -95,21 +104,16 @@ class UserServiceImplTest {
 
     @Test
     void updateNameAndSurname_shouldUpdate() {
-        when(repository.updateNameAndSurnameById(1L, "New", "Name")).thenReturn(1);
         when(repository.findById(1L)).thenReturn(Optional.of(user));
 
         UserDTO result = service.updateNameAndSurname(1L, "New", "Name");
 
         assertThat(result).isNotNull();
         assertThat(result.getId()).isEqualTo(1L);
-    }
+        assertThat(user.getName()).isEqualTo("New");
+        assertThat(user.getSurname()).isEqualTo("Name");
 
-    @Test
-    void updateNameAndSurname_shouldThrow_whenNotUpdated() {
-        when(repository.updateNameAndSurnameById(anyLong(), any(), any())).thenReturn(0);
-
-        assertThatThrownBy(() -> service.updateNameAndSurname(1L, "A", "B"))
-                .isInstanceOf(NotFoundException.class);
+        verify(repository).findById(1L);
     }
 
     @Test
@@ -117,21 +121,25 @@ class UserServiceImplTest {
         assertThatThrownBy(() -> service.updateNameAndSurname(null, "A", "B"))
                 .isInstanceOf(ValidationException.class);
     }
+
     @Test
-    void setActiveStatus_shouldUpdate() {
-        when(repository.setActiveStatus(1L, false)).thenReturn(1);
+    void updateNameAndSurname_shouldThrow_whenNotFound() {
+        when(repository.findById(1L)).thenReturn(Optional.empty());
 
-        service.setActiveStatus(1L, false);
-
-        verify(repository).setActiveStatus(1L, false);
+        assertThatThrownBy(() -> service.updateNameAndSurname(1L, "A", "B"))
+                .isInstanceOf(NotFoundException.class);
     }
 
     @Test
-    void setActiveStatus_shouldThrow_whenNotUpdated() {
-        when(repository.setActiveStatus(1L, true)).thenReturn(0);
+    void setActiveStatus_shouldUpdate() {
+        when(repository.findById(1L)).thenReturn(Optional.of(user));
 
-        assertThatThrownBy(() -> service.setActiveStatus(1L, true))
-                .isInstanceOf(NotFoundException.class);
+        UserDTO result = service.setActiveStatus(1L, false);
+
+        assertThat(result).isNotNull();
+        assertThat(user.getActive()).isFalse();
+
+        verify(repository).findById(1L);
     }
 
     @Test
@@ -139,21 +147,23 @@ class UserServiceImplTest {
         assertThatThrownBy(() -> service.setActiveStatus(null, true))
                 .isInstanceOf(ValidationException.class);
     }
+
     @Test
-    void delete_shouldDeleteUser() {
-        when(repository.existsById(1L)).thenReturn(true);
+    void setActiveStatus_shouldThrow_whenNotFound() {
+        when(repository.findById(1L)).thenReturn(Optional.empty());
 
-        service.delete(1L);
-
-        verify(repository).deleteById(1L);
+        assertThatThrownBy(() -> service.setActiveStatus(1L, true))
+                .isInstanceOf(NotFoundException.class);
     }
 
     @Test
-    void delete_shouldThrow_whenNotFound() {
-        when(repository.existsById(1L)).thenReturn(false);
+    void delete_shouldDeleteUser() {
+        when(repository.findById(1L)).thenReturn(Optional.of(user));
 
-        assertThatThrownBy(() -> service.delete(1L))
-                .isInstanceOf(NotFoundException.class);
+        UserDTO result = service.delete(1L);
+
+        assertThat(result).isNotNull();
+        verify(repository).delete(user);
     }
 
     @Test
@@ -163,20 +173,26 @@ class UserServiceImplTest {
     }
 
     @Test
+    void delete_shouldThrow_whenNotFound() {
+        when(repository.findById(1L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.delete(1L))
+                .isInstanceOf(NotFoundException.class);
+    }
+
+    @Test
     void findAll_shouldReturnPageOfUserDTO() {
         Pageable pageable = PageRequest.of(0, 10, Sort.by("id").ascending());
-
-        Specification<User> spec = (root, query, cb) -> cb.conjunction();
-
         Page<User> userPage = new PageImpl<>(List.of(user), pageable, 1);
-        when(repository.findAll(spec, pageable)).thenReturn(userPage);
 
-        Page<UserDTO> result = service.findAll(spec, pageable);
+        when(repository.findAll(any(Specification.class), eq(pageable))).thenReturn(userPage);
+
+        Page<UserDTO> result = service.findAll("John", "Doe", pageable);
 
         assertThat(result).isNotNull();
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getId()).isEqualTo(1L);
 
-        verify(repository).findAll(spec, pageable);
+        verify(repository).findAll(any(Specification.class), eq(pageable));
     }
 }

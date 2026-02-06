@@ -63,6 +63,7 @@ dependencies {
 	testImplementation 'org.springframework.boot:spring-boot-starter-restclient:4.0.1'
 	implementation 'org.springframework.boot:spring-boot-starter-security'
 	implementation("io.jsonwebtoken:jjwt:0.13.0")
+	implementation("org.springframework.security:spring-security-web:7.0.0")
 
 }
 

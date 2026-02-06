@@ -31,7 +31,7 @@ jobs:
           echo "jar-path=build/libs/$(ls build/libs | grep '.jar' | head -n 1)" >> $GITHUB_OUTPUT
 
       - name: Upload JAR artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: app-jar
           path: ${{ steps.build.outputs.jar-path }}
@@ -42,7 +42,7 @@ jobs:
     needs: build
     steps:
       - name: Download built JAR
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: app-jar
 
@@ -105,7 +105,7 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Download built JAR
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: app-jar
 

@@ -34,7 +34,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: app-jar
-          path: ${{ steps.build.outputs.jar-path }}
+          path: build/libs/
 
   test:
     name: Run Tests

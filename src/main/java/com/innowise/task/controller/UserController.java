@@ -1,0 +1,88 @@
+package com.innowise.task.controller;
+
+import com.innowise.task.dto.UserDTO;
+import com.innowise.task.service.UserService;
+import com.innowise.task.specification.UserSpecification;
+import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+import org.springframework.data.domain.Pageable;
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/users")
+public class UserController {
+
+    private final UserService userService;
+
+    public UserController(UserService userService) {
+        this.userService = userService;
+    }
+
+    @PreAuthorize("hasRole('ADMIN') or #id == authentication.principal")
+    @GetMapping("/{id}")
+    public ResponseEntity<UserDTO> getUser(@PathVariable Long id) {
+        return ResponseEntity.ok(userService.getById(id));
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @PostMapping
+    public ResponseEntity<UserDTO> createUser(@RequestBody @Valid UserDTO userDTO) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(userService.create(userDTO));
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @PatchMapping("/{id}/active")
+    public ResponseEntity<UserDTO> setActiveStatus(
+            @PathVariable Long id,
+            @RequestParam boolean active) {
+        UserDTO user = userService.setActiveStatus(id, active);
+
+        return ResponseEntity.ok(user);
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @DeleteMapping("/{id}")
+    public ResponseEntity<UserDTO> deleteUser(@PathVariable Long id) {
+        UserDTO userDTO = userService.delete(id);
+
+        return ResponseEntity.ok(userDTO);
+    }
+
+    @PreAuthorize("hasRole('ADMIN') or #id == authentication.principal")
+    @PatchMapping("/{id}")
+    public ResponseEntity<UserDTO> updateNameAndSurname(
+            @PathVariable Long id,
+            @RequestParam String name,
+            @RequestParam String surname) {
+        UserDTO updatedUser = userService.updateNameAndSurname(id, name, surname);
+
+        return ResponseEntity.ok(updatedUser);
+
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @GetMapping()
+    public ResponseEntity<Page<UserDTO>> getAll(
+            @RequestParam(required = false) String name,
+            @RequestParam(required = false) String surname,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "id") String sortBy
+    ){
+        Pageable pageable = PageRequest.of(page, size, Sort.by(sortBy));
+        Page<UserDTO> users = userService.findAll(name, surname, pageable);
+
+        return ResponseEntity.ok(users);
+
+    }
+
+
+}

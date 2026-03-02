@@ -18,7 +18,6 @@ import java.util.List;
 public class User extends Auditable{
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Column(nullable = false)
@@ -33,8 +32,8 @@ public class User extends Auditable{
     @Column(nullable = false, unique = true)
     private String email;
 
-    @Column(nullable = false)
-    private Boolean active;
+    @Column
+    private Boolean active = true;
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private List<PaymentCard> paymentCards;

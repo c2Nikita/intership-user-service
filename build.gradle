@@ -17,7 +17,7 @@ description = 'Demo project for Spring Boot'
 
 java {
 	toolchain {
-		languageVersion = JavaLanguageVersion.of(20)
+		languageVersion = JavaLanguageVersion.of(21)
 	}
 }
 
@@ -29,6 +29,7 @@ configurations {
 
 repositories {
 	mavenCentral()
+	mavenLocal()
 }
 
 dependencies {
@@ -65,6 +66,8 @@ dependencies {
 	implementation("io.jsonwebtoken:jjwt:0.13.0")
 	implementation("org.springframework.security:spring-security-web:7.0.0")
 
+	implementation("org.springframework.cloud:spring-cloud-starter-netflix-eureka-client:5.0.1")
+	implementation 'com.innowise:security-spring-boot-starter:1.0.0'
 }
 
 tasks.named('test') {

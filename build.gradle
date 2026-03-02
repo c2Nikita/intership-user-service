@@ -29,7 +29,13 @@ configurations {
 
 repositories {
 	mavenCentral()
-	mavenLocal()
+	maven {
+		url = uri("https://maven.pkg.github.com/c2Nikita/intership-security-starter")
+		credentials {
+			username = project.findProperty("gpr.user") ?: System.getenv("GITHUB_ACTOR")
+			password = project.findProperty("gpr.key") ?: System.getenv("GITHUB_TOKEN")
+		}
+	}
 }
 
 dependencies {

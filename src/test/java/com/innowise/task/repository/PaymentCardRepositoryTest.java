@@ -34,6 +34,7 @@ class PaymentCardRepositoryTest {
     @BeforeEach
     void setUp() {
         user = new User();
+        user.setId(1L);
         user.setName("Nikita");
         user.setSurname("Velich");
         user.setEmail("nikita@example.com");

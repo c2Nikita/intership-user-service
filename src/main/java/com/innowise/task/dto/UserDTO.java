@@ -28,6 +28,5 @@ public class UserDTO {
     @Size(max = MAX_SIZE_FOR_FIELD_DB)
     private String email;
 
-    @NotNull
-    private Boolean active;
+    private Boolean active = true;
 }

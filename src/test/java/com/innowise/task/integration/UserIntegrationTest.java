@@ -68,6 +68,7 @@ public class UserIntegrationTest {
     @Test
     void testFullUserFlow() {
         UserDTO userDTO = new UserDTO();
+        userDTO.setId(1L);
         userDTO.setName("John");
         userDTO.setSurname("Doe");
         userDTO.setEmail("john.doe@example.com");

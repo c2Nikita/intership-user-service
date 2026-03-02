@@ -9,6 +9,9 @@ jobs:
   build:
     name: Build Project
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
     outputs:
       jar-path: ${{ steps.build.outputs.jar-path }}
     steps:
